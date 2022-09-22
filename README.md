@@ -1,1 +1,1 @@
-# nba-playes-position-classifier
+# NBA Players Position Classifier
