@@ -18,14 +18,17 @@
   - [Final Model](#final-model)
 - [Usage](#usage)
 - [Findings](#findings)
-- [The Results](#the-results)
 - [Source File](#source-file)
 - [Legality](#legality)
 
 ## Background
 As someone who has been playing basketball since the second grade and has been a Warriors fan since birth, the NBA and basketball in general have always held a special place in my heart. As time goes on, statistics and analytics have played an increasingly larger role in the world of basketball. With this project, and my [NBA All Stars Classifier](https://jacquelinekclee.github.io/nba-all-stars-classifier.github.io/), I wanted to use my love of basketball in developing and praciticing new Data Science skills.
 
-This classifier, specifically a K-Nearest Neighbors Classifier, uses statistics from nearly 19,000 players' seasons from 1980-2017. I will then test my classifier using statistics from the 2018-19 season, the 2020-21 season (skipping the season interrupted by the pandemic), and the most recent season, 2021-22. Given that all star voting involves non-expert (fan) voting and some level of subjectivity, hopefully the results will help reveal which players' All Star designation(s) match the data, which players were overlooked, and which players were perhaps overrated. 
+As basketball players have gotten more skilled and talented and as the game itself has revolutionized, the notion of **positions** increasingly becomes a dated aspect of the game. The commissioner of the NBA, Adam Silver, acknowledged that the NBA ["has moved increasingly to positionless basketball"](https://www.nba.com/news/nba-commissioner-adam-silver-discusses-leagues-positionless-basketball-at-annual-finals-press-conference) when discussing the possibility of removing positions from the All-NBA decision process, which honors the best players in the league. 
+
+With this project, I hope to understand basketball positions using statistics and machine learning. If an ML model can predict a player's position based on his stats, then maybe this player doesn't play positionless basketball and adheres to his traditional role as a guard/forward/center. If a model gets it wrong, then maybe the player has a unique play style that doesn't conform to the historic statistics of players in his positions before him. 
+
+Keep reading to learn more about the data used, the approach I took to building this classifier, and the cool findings the model yielded!
 
 [(Back to top)](#table-of-contents)
 
@@ -58,60 +61,104 @@ The [source file](#source-file) contains all the functions used to clean/manipul
 [(Back to top)](#table-of-contents)
 
 ## The Methodology
-Since only about 5% of players in a given season are designated All Stars, a classifier that does well predicting the minority class is needed. Additionally, instead of using accuracy as the evaluation metric, recall was chosen instead given my interest in capturing all the All Star players in each season. In [this Medium article](https://towardsdatascience.com/classifying-rare-events-using-five-machine-learning-techniques-fab464573233), by Leihua Ye, PhD found that K-Nearest Neighbors performed best for prediciting rare events, especially when looking at ROC Curves. Given these findings, KNN's lack of of training time, and its simplicity, KNN was chosen. 
+
+In the initial data cleaning process, the players' positions were simplified to include 5 classes: 
+
+| Position   | Proportion in Training Data        |
+|:---|-----------:|
+| Forward  | 0.399   |
+| Guard  | 0.396   |
+| Center  | 0.199   |
+| Guard/Forward | 0.003 |
+| Forward/Center | 0.003 |
+
+Notice that forwards and guards make up nearly 80% of the datasest, with centers making just under 20% and the hybrid positions making up hardly 1% altogether. Since this is a multiclass problem with some class imbalance, I wanted to test different models. Another consideration was the effect of including Year as a feature. Theoretically, if the way a player of a given position hasn't changed over time, then a classifier without year should perform better (or differently) than a classifier with year as a feature. 
+
+I tried both random forest modesl and XGBoost models. I went with random forests as a better alternative to decision trees in that random forests are more robust to overfitting. I also chose to explore XGBoost classifiers as they might work better for the class imbalance. In total, 4 different models were originally trained: 2 random forests (one with year as a featuere and one without) and 2 XGBoost classifiers (one with year as a feature and one without). The features for both models were as follows:
+- TS%: true shooting percentage
+- RPG: rebounds per game
+- APG: assists per game
+- PPG: points per game
+- BPG: blocks per game
+- SPG: steals per game
+- Year: year of that season (e.g, rows from the 1980-1981 season has 1981 as its year)
+- All Star: whether that player was an All Star that season
+- MVP: whether that player was the MVP that season
 
 [(Back to top)](#table-of-contents)
 
 ## Training
-The main hyperparamter in KNN is of course the number of neighbors `k`. Several sources indicate that `n ** 2`, where $n$ is the number of instances in the sample, is a good heuristic for best `k`. Other important hyperparameters are `weights`, or how the nearest neighbors are used in determining the final prediction, and `metric`, or which distance metric KNN uses. I used Scikit's `GridSearchCV` to combine both hyperparameter tuning and training the model with cross validation to determine the final model. See below for the parameters tested and the ultimate model parameters:
+Using Scikit's `GridSearchCV`, I tested out several combinations of different hyperparameters. The training times for both models were extremely *long*. See below for the paramters tested for each type of model:
 
-Parameters tested:
-`{'clf__n_neighbors' : [19, 21, 23, 25, 27], 'clf__weights' : ['uniform','distance'], 'clf__metric' : ['minkowski','euclidean','manhattan']}`
+Parameters tested for random forests:
+`{'n_estimators': [300,500,700], 'max_features': ['sqrt', 'log2'], 'max_depth' : [5,10,15,20,25,None], 'criterion' :['gini', 'entropy'], 'random_state' : [18]}`
 
-Best paramters:
-`{'clf__metric': 'minkowski', 'clf__n_neighbors': 19, 'clf__weights': 'distance'}`
+Parameters tested for XGBoost classifiers:
+`{'max_depth': [3,6,10], 'learning_rate': [0.01, 0.05, 0.1], 'n_estimators': [100, 500, 1000], 'colsample_bytree': [0.3, 0.7]}`
+
+Given that this a multiclass classification problem, I found that accuracy was the most straightforward evaluation metric. Additionally, I looked at the proportion of players for a given position that were misclassified. For example, if 10 out of 40 centers in the test data set were *not* classified as centers by the model, then the proportion would be 0.25. See below for the results found with the 2018-19 season as the test set:
+
+| model                      |   test accuracy |   prop wrong for centers |   prop wrong for forwards |   prop wrong for guards |
+|:---------------------------|----------------:|-------------------------:|--------------------------:|------------------------:|
+| random forest without year |        0.390 |                     0.48 |                      0.19 |                    0.26 |
+| random forest with year    |        0.392 |                     0.47 |                      0.19 |                    0.23 |
+| XGBoost without year       |        0.378 |                     0.53 |                      0.2  |                    0.27 |
+| XGBoost with year          |        0.390 |                     0.55 |                      0.16 |                    0.25 |
+
+Both types of model performed better when year was included in the feature set, with year boosting accuracy more for the XGBoost models than the random forests. What stuck out to me most was how much better the random forests were at classifying the minority class, centers. 
+
+Additionally, the 2 types of classifiers found different features to be more important. The Random Forest classifiers thought RBG (rebounds per game) were more important than BPG (blocks per game), while the XGBoost classifiers didn't. Both classifiers had similar levels of feature importance for APG (assists per game) and PPG (points per game). See the notebook for feature importances. 
+
+Some pitfalls of both classifiers include: 
+- Neither classifier was able to classify the hybrid positions, GF and FC, correctly. This is likely because only about 0.006 of the training data have these hybrid positions. 
+- Both the All Star and MVP features had 0 importance for all 4 models tested. Including irrelevant features could make cost (e.g., runtime) unnecessarily high. 
+- Although XGBoost was used to try and combat the class imbalance (around 2x guards and forwards than centers), XGBoost did *worse* and classifying centers than Random Forest did. 
+
+In effort to create a better performing classifier, a new position column will be created. Hopefully making this problem only 3 classes instead of 5 will yield a better classifier. Also, MVP and All Star will be removed from the feature list. It seems that the year feature is particularly useful for classifying guards. Lastly, although XGBoost yielded a slightly higher accuracy, it classified centers much worse than the random forest (which was unexpected). Since the XGBoost didn't provide the expected benefits and its training time is much slower, Random Forest will be used going forward. 
+
+## Final Model
+
+Based on the findings above, I went with a Random Forest model with TS%, RPG, APG, PPG, BPG, SPG, and Year as features. See below for the feature importances and test accuracies:
+
+|   Feature   |          Importance |
+|:-----|----------:|
+| RPG  | 0.254  |
+| APG  | 0.251  |
+| BPG  | 0.233  |
+| SPG  | 0.116  |
+| PPG  | 0.077 |
+| TS%  | 0.037 |
+| Year | 0.031 |
+
+| season   |   test accuracy |   prop wrong for centers |   prop wrong for forwards |   prop wrong for guards |
+|:---------|----------------:|-------------------------:|--------------------------:|------------------------:|
+| 2018-19  |           0.736 |                     0.47 |                      0.19 |                    0.24 |
+| 2020-21  |           0.715 |                     0.46 |                      0.22 |                    0.27 |
+| 2021-22  |           0.704 |                     0.54 |                      0.19 |                    0.27 |
+
+Clearly, this model performed much better than the 1st round. However, it started performing worse for the more recent seasons. This may be some indication of a shift coming in basketball, where players' statistics and general playstyles don't reflect the typical notions of positions in seasons prior. 
 
 [(Back to top)](#table-of-contents)
 
 ## Findings
-Below is a table summarizing the recall scores:
-| Season    |   Recall Score |
-|:----------|---------------:|
-| 2019-2018 |          0.615 |
-| 2020-2021 |          0.741 |
-| 2021-2022 |          0.667 |
+Draymond Green, Ben Simmons, Giannis Antetokounmpo, LeBron James, Kevin Durant, Nikola Jokić, and Jayson Tatum are some consensus "positionless" NBA players (see this [CBS article]('https://bleacherreport.com/articles/2627364-5-unique-nba-players-who-dont-fit-in-a-category') and this [Blearcher Report article]('https://bleacherreport.com/articles/2627364-5-unique-nba-players-who-dont-fit-in-a-category')). One might expect the classifier to predict these players' posititions *incorrectly* if they are truly "positionless." As with all things basketball, several things transcend the stat sheet, but hopefully these results provide some interesting insights! The table below shows the correct position (Pos) and the model's prediction (pos_pred) for these "positionless" players:
 
-The classifier was able to find a majority of each season's all stars, performing best for the 2020-21 season. 
+| Player                | Pos_2019   | pos_pred_2019   | Pos_2021   | pos_pred_2021   | Pos   | pos_pred   |
+|:----------------------|:-----------|:----------------|:-----------|:----------------|:------|:-----------|
+| Giannis Antetokounmpo | F          | F               | F          | F               | F     | F          |
+| Kevin Durant          | F          | F               | F          | F               | F     | F          |
+| Draymond Green        | F          | F               | F          | G               | F     | F          |
+| LeBron James          | F          | F               | G          | F               | F     | F          |
+| Nikola Jokić          | C          | F               | C          | F               | C     | F          |
+| Jayson Tatum          | F          | F               | F          | F               | F     | F          |
 
-## The Results
-See below for some discussion on the model's predictions. See the table linked [here](/all_star_classifier_summary.csv) to see a full summary of the 3 NBA seasons used in testing and the results for each player. 
+Giannis Antetokounmpo, Kevin Durant, and Jayson Tatum were always correctly classified as forwards for the 3 seasons used as test data. This may be because forwards were the most common position in the training data, so the classifier knows forwards particularly well. 
 
-### "Properly Rated" All Stars: The True Positives
-There were only 6 players who were voted as All Stars for all 3 seasons (2018-19, 2020-21, and 2021-22) *and* were deemed "properly rated" for all 3 seasons. In this case, "properly rated" means that the all star voting seemed to match the data and the KNN model's findings.
-- Giannis Antetokounmpo
-- James Harden
-- Joel Embiid
-- Kevin Durant
-- LeBron James
-- Stephen Curry
+Basketball Reference has LeBron James listed as having played both the forward and guard positions. In the 2020-21 season, where James was listed primarily as a guard, the classifier predicted him incorrectly to be a forward. In the eyes of the classifier, it seems that James presents as a forward more than a guard.
 
-### "Overrated" All Stars: The False Negatives
-The "overrated" players are instances where the classifier predicted a player *wasn't* an All Star when in reality they were. These cases could include players that perhaps contribute in ways that don't show up on the stat sheet or players that a particular fan favorites. For instance, in the 2018-19 season, future hall-of-famers and NBA champions Dirk Nowitzki and Dwyane Wade were voted as All Stars, but the classifier thought differently. That season was both Nowitzki and Wade's last season in the NBA, so while their stats maybe weren't up to par, their legendary careers earned them the designation. 
+In the 2020-21 season, Draymond Green was listed as a forward, but misclassified as a guard. Green had to step up that season considering Klay Thompson's absence that season and the fact that other guards like Jordan Poole (playing only his 3rd year professionaly after some time in the G-League) and Gary Payton II (who hardly played at all) were early in their development. 
 
-For 2 of the 3 seasons used in testing, Ben Simmons (2018-19 and 2020-21), Khris Middleton (2018-19 and 2021-22), Nikola Vučević (2018-19 and 2020-21), and Rudy Gobert (2020-21 and 2021-22) all fell under the "overrated" category. Middleton might not have the opportunity to shine in the stats playing alongside generational talent Giannis Antetokounmpo, thus resulting in a false negative. The same could be said about Ben Simmons who played with Joel Embiid, but his recent (lack of) play may make fans agree with the "overrated" designation. 
-
-Another interesting case of "overrated" all stars is Nikola Jokić. The model deemed him to be "overrated" in 2018-19, but in the 2 previous seasons (during which he got consecutive MVP honors), the model correctly predicted him as an All Star. 
-
-### "Underrated" Players: The False Positives
-The "underrated" players are those that the classifier predicted to be all stars, but weren't voted as all stars in reality. Perhaps the stats of such a player were exceptional, but other aspects like their winning percentages weren't up to par. See below for the players from the 2018-19, 2020-21, and 2021-22 seasons that were deemed underrated and were never selected as an All Star in any of the 3 seasons:
-- Brandon Ingram (2020-21)
-- CJ McCollum (2020-21)
-- John Wall (2018-19)
-- Jrue Holiday (2019-19)
-- Pascal Siakam (2021-22)
-- Shai Gilgeous-Alexander (2020-21, 2021-22)
-
-One interesting player here is Pascal Siakam, who was voted an All Star in the 2019-2020, the season after he won a championship. Siakam was perhaps overlooked by fans and/or the media playing in Toronto (as opposed to in the U.S. or a larger market team). For 2 seasons in a row, young guard Shai Gilgeous-Alexander was "underrated" in the eyes of the model. His team, the OKC Thunder, had a terrible record this past season and finished in 14th place in the Western Conference. This lack of winning, and the fact that OKC is a smaller market, may explain why Gilgeous-Alexander was overlooked in all star voting.
+Hopefully some of these insights were interesting! Please feel free to explore the Python notebooks on your own!
 
 [(Back to top)](#table-of-contents)
 
