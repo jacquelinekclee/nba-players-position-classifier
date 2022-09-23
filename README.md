@@ -5,7 +5,7 @@
 [SOURCE](https://www.cbssports.com/nba/news/power-guard-point-center-the-nbas-positional-misfits-are-dismantling-an-antiquated-system/)
 
 # Links
-- [Website](https://jacquelinekclee.github.io/nba-players-position-classifier.github.io/)
+- [Website](https://jacquelinekclee.github.io/nba-players-position-classifier/)
 - [Repository (with all relevant files/data)](https://github.com/jacquelinekclee/nba-players-position-classifier.github.io)
 
 # Table of contents
